@@ -1,0 +1,52 @@
+# Déploiement complet sur une machine : PostgreSQL, API et front.
+#   cp .env.prod.example .env.prod   # puis remplir les secrets
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Placez un reverse proxy HTTPS (Caddy, Traefik, nginx) devant le port WEB_PORT.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cordee
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD}
+      POSTGRES_DB: cordee
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cordee"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://cordee:${POSTGRES_PASSWORD}@postgres:5432/cordee
+      WEB_ORIGIN: ${PUBLIC_URL:?définir PUBLIC_URL}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?définir JWT_ACCESS_SECRET}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-Cordée <no-reply@cordee.local>}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+    volumes:
+      - uploads:/data/uploads
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+  uploads:

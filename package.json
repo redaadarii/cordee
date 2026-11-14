@@ -1,0 +1,23 @@
+{
+  "name": "cordee",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cordée — gestion de projet agile pour les équipes produit",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "db:up": "docker compose up -d postgres redis",
+    "db:migrate": "pnpm --filter @cordee/api run db:migrate",
+    "db:seed": "pnpm --filter @cordee/api run db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.11"
+  }
+}

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: cordee
+          POSTGRES_PASSWORD: cordee
+          POSTGRES_DB: cordee
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cordee" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://cordee:cordee@localhost:5432/cordee
+      JWT_ACCESS_SECRET: ci-only-secret-ci-only-secret-ci-only
+      NODE_ENV: test
+      MAIL_OUTBOX_FILE: /tmp/cordee-outbox.jsonl
+      UPLOAD_DIR: /tmp/cordee-uploads
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm db:migrate
+      - name: Tests de bout en bout
+        run: |
+          node apps/api/dist/main.js &
+          for i in $(seq 1 20); do curl -sf http://localhost:3000/api/v1/health && break; sleep 1; done
+          pnpm --filter @cordee/api run test:e2e
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construire les images
+        run: |
+          docker build -f docker/api.Dockerfile -t cordee-api .
+          docker build -f docker/web.Dockerfile -t cordee-web .
